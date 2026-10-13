@@ -6,10 +6,13 @@ import com.riglineaimstriker.junior.inference.EngineState
 import com.riglineaimstriker.junior.inference.InferenceEngine
 import com.riglineaimstriker.junior.inference.InferenceException
 import com.riglineaimstriker.junior.inference.PromptBuilder
+import com.riglineaimstriker.junior.inference.SkillPrompt
 import com.riglineaimstriker.junior.model.AppPrefs
+import com.riglineaimstriker.junior.model.ChatStore
 import com.riglineaimstriker.junior.model.DeviceTuner
 import com.riglineaimstriker.junior.model.ModelRepository
 import com.riglineaimstriker.junior.model.Profiles
+import com.riglineaimstriker.junior.skills.SkillStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -39,15 +42,20 @@ class ChatViewModel @Inject constructor(
     private val repo: ModelRepository,
     private val prefs: AppPrefs,
     private val tuner: DeviceTuner,
+    private val store: ChatStore,
+    private val skills: SkillStore,
 ) : ViewModel() {
 
-    private val _messages = MutableStateFlow<List<UiMessage>>(emptyList())
+    private val _messages = MutableStateFlow<List<UiMessage>>(store.load())
     val messages: StateFlow<List<UiMessage>> = _messages.asStateFlow()
 
     private val _generating = MutableStateFlow(false)
     val generating: StateFlow<Boolean> = _generating.asStateFlow()
 
     val engineState: StateFlow<EngineState> = engine.state
+
+    /** Запрос из быстрых задач главного меню: подставляется в поле ввода. */
+    val initialPrompt: String = store.takePendingPrompt().orEmpty()
 
     val modelName: StateFlow<String> = prefs.selected
         .map { Profiles.byId(it)?.name ?: "Junior" }
@@ -58,7 +66,7 @@ class ChatViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, prefs.selected.value != null)
 
     private var genJob: Job? = null
-    private var nextId = 0L
+    private var nextId = (_messages.value.maxOfOrNull { it.id } ?: -1L) + 1
     private var ctxSize = 2048
 
     init {
@@ -104,6 +112,7 @@ class ChatViewModel @Inject constructor(
     fun newChat() {
         stop()
         _messages.value = emptyList()
+        store.clear()
     }
 
     private fun generate() {
@@ -112,8 +121,12 @@ class ChatViewModel @Inject constructor(
             val sb = StringBuilder()
             try {
                 val history = _messages.value.dropLast(1).map { it.isUser to it.text }
-                val prompt = PromptBuilder.build(history, ctxSize - MAX_NEW)
-                engine.generate(prompt, MAX_NEW).collect { piece ->
+                val rules = skills.activePrompt(ctxSize / 2)
+                // Длина ответа и стиль (температура) — из настроек пользователя.
+                val maxNew = prefs.maxTokens.value.coerceIn(128, (ctxSize - 256).coerceAtLeast(128))
+                val temperature = prefs.style.value.temperature
+                val prompt = PromptBuilder.build(SkillPrompt.apply(history, rules), ctxSize - maxNew)
+                engine.generate(prompt, maxNew, temperature).collect { piece ->
                     sb.append(piece)
                     updateLast(sb.toString(), streaming = true)
                 }
@@ -127,6 +140,7 @@ class ChatViewModel @Inject constructor(
                 updateLast(sb.toString(), streaming = false, error = "Не удалось получить ответ. Повторите запрос.")
             } finally {
                 _generating.value = false
+                store.save(_messages.value)
             }
         }
     }
@@ -142,6 +156,4 @@ class ChatViewModel @Inject constructor(
         engine.cancel()
         super.onCleared()
     }
-
-    private companion object { const val MAX_NEW = 768 }
 }

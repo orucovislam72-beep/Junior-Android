@@ -36,7 +36,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -61,6 +63,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -74,21 +77,29 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.riglineaimstriker.junior.inference.EngineState
 import com.riglineaimstriker.junior.ui.components.JuniorAvatar
+import com.riglineaimstriker.junior.util.FileExport
 
 @Composable
-fun ChatScreen(onOpenModels: () -> Unit, vm: ChatViewModel = hiltViewModel()) {
+fun ChatScreen(onBack: () -> Unit, onOpenModels: () -> Unit, vm: ChatViewModel = hiltViewModel()) {
     val messages by vm.messages.collectAsStateWithLifecycle()
     val engine by vm.engineState.collectAsStateWithLifecycle()
     val generating by vm.generating.collectAsStateWithLifecycle()
     val modelName by vm.modelName.collectAsStateWithLifecycle()
     val hasModel by vm.hasModel.collectAsStateWithLifecycle()
-    var input by rememberSaveable { mutableStateOf("") }
+    var input by rememberSaveable { mutableStateOf(vm.initialPrompt) }
     val ready = engine is EngineState.Ready
+    val ctx = LocalContext.current
 
     Column(
         Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()
     ) {
-        TopBar(onNew = vm::newChat, onSettings = onOpenModels)
+        TopBar(
+            onBack = onBack,
+            onNew = vm::newChat,
+            onExport = { FileExport.share(ctx, "junior-chat.md", chatMarkdown(messages)) },
+            canExport = messages.any { !it.isUser && it.text.isNotBlank() },
+            onSettings = onOpenModels,
+        )
         Box(Modifier.weight(1f).fillMaxWidth()) {
             if (messages.isEmpty()) EmptyState(onPick = { input = it })
             else MessageList(messages, onRegenerate = vm::regenerate)
@@ -107,11 +118,18 @@ fun ChatScreen(onOpenModels: () -> Unit, vm: ChatViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun TopBar(onNew: () -> Unit, onSettings: () -> Unit) {
+private fun TopBar(
+    onBack: () -> Unit,
+    onNew: () -> Unit,
+    onExport: () -> Unit,
+    canExport: Boolean,
+    onSettings: () -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад в меню") }
         IconButton(onNew) { Icon(Icons.Default.Add, contentDescription = "Новый чат") }
         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Junior", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
@@ -124,6 +142,7 @@ private fun TopBar(onNew: () -> Unit, onSettings: () -> Unit) {
                 )
             }
         }
+        IconButton(onExport, enabled = canExport) { Icon(Icons.Default.Share, contentDescription = "Отправить чат файлом") }
         IconButton(onSettings) { Icon(Icons.Default.Settings, contentDescription = "Модели и настройки") }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
@@ -186,8 +205,10 @@ private fun MessageList(messages: List<UiMessage>, onRegenerate: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         items(reversed, key = { it.id }) { m ->
-            if (m.isUser) UserBubble(m.text)
-            else AssistantMessage(m, isLast = m.id == lastId, onRegenerate = onRegenerate)
+            Box(Modifier.animateItem()) {
+                if (m.isUser) UserBubble(m.text)
+                else AssistantMessage(m, isLast = m.id == lastId, onRegenerate = onRegenerate)
+            }
         }
     }
 }
@@ -213,6 +234,7 @@ private fun UserBubble(text: String) {
 @Composable
 private fun AssistantMessage(m: UiMessage, isLast: Boolean, onRegenerate: () -> Unit) {
     val clipboard = LocalClipboardManager.current
+    val ctx = LocalContext.current
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             JuniorAvatar(26.dp)
@@ -229,6 +251,9 @@ private fun AssistantMessage(m: UiMessage, isLast: Boolean, onRegenerate: () -> 
             Row(Modifier.padding(top = 4.dp)) {
                 TextButton({ clipboard.setText(AnnotatedString(m.text)) }) {
                     Text("Копировать", style = MaterialTheme.typography.labelMedium)
+                }
+                TextButton({ FileExport.share(ctx, "junior-answer.md", m.text) }) {
+                    Text("Файл", style = MaterialTheme.typography.labelMedium)
                 }
                 if (isLast) TextButton(onRegenerate) {
                     Text("Повторить", style = MaterialTheme.typography.labelMedium)
@@ -309,6 +334,7 @@ private fun MessageContent(text: String, streaming: Boolean) {
 @Composable
 private fun CodeBlock(lang: String, code: String) {
     val clipboard = LocalClipboardManager.current
+    val ctx = LocalContext.current
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -325,8 +351,13 @@ private fun CodeBlock(lang: String, code: String) {
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                TextButton({ clipboard.setText(AnnotatedString(code)) }) {
-                    Text("Копировать", style = MaterialTheme.typography.labelSmall)
+                Row {
+                    TextButton({ FileExport.share(ctx, "junior-code.${FileExport.extFor(lang)}", code) }) {
+                        Text("Файл", style = MaterialTheme.typography.labelSmall)
+                    }
+                    TextButton({ clipboard.setText(AnnotatedString(code)) }) {
+                        Text("Копировать", style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
@@ -479,5 +510,17 @@ private fun ArrowUp(color: Color) {
         drawLine(color, Offset(w / 2, h * 0.9f), Offset(w / 2, h * 0.1f), sw, StrokeCap.Round)
         drawLine(color, Offset(w * 0.15f, h * 0.45f), Offset(w / 2, h * 0.08f), sw, StrokeCap.Round)
         drawLine(color, Offset(w * 0.85f, h * 0.45f), Offset(w / 2, h * 0.08f), sw, StrokeCap.Round)
+    }
+}
+
+private fun chatMarkdown(list: List<UiMessage>): String = buildString {
+    appendLine("# Чат с Junior")
+    appendLine()
+    list.forEach { m ->
+        if (m.text.isBlank()) return@forEach
+        appendLine(if (m.isUser) "## Вы" else "## Junior")
+        appendLine()
+        appendLine(m.text.trim())
+        appendLine()
     }
 }

@@ -15,8 +15,8 @@ android {
         applicationId = "com.riglineaimstriker.junior"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild {
             cmake {
@@ -63,6 +63,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true }
+    // GGUF уже сжат квантованием: храним в APK без сжатия (быстрее сборка и копирование).
+    androidResources { noCompress += "gguf" }
     packaging { jniLibs { useLegacyPackaging = false } }
 }
 

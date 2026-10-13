@@ -50,9 +50,12 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
     @Volatile private var handle = 0L
     private val genLock = Mutex()
     private val loadLock = Mutex()
+    @Volatile private var loadedSig: String? = null
 
     override suspend fun load(modelPath: String, nCtx: Int, threads: Int) {
         loadLock.withLock {
+            val sig = "$modelPath|${java.io.File(modelPath).lastModified()}|$nCtx"
+            if (_state.value is EngineState.Ready && handle != 0L && loadedSig == sig) return@withLock
             withContext(Dispatchers.Default) {
                 unloadInternal()
                 _state.value = EngineState.Loading
@@ -60,6 +63,7 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
                     val h = LlamaBridge.load(modelPath, nCtx, threads)
                     check(h != 0L) { "Не удалось открыть модель. Файл повреждён или не хватает памяти." }
                     handle = h
+                    loadedSig = sig
                     _state.value = EngineState.Ready
                 } catch (e: CancellationException) {
                     _state.value = EngineState.Unloaded
@@ -74,6 +78,7 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
     }
 
     private suspend fun unloadInternal() {
+        loadedSig = null
         val h = synchronized(lock) { val x = handle; handle = 0L; x }
         if (h != 0L) {
             LlamaBridge.cancel(h)

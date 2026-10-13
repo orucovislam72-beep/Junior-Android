@@ -1,5 +1,6 @@
 package com.riglineaimstriker.junior.ui.setup
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.riglineaimstriker.junior.model.AppPrefs
@@ -9,7 +10,13 @@ import com.riglineaimstriker.junior.model.ModelProfile
 import com.riglineaimstriker.junior.model.ModelRepository
 import com.riglineaimstriker.junior.model.Profiles
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -21,6 +28,12 @@ data class ProfileUi(
     val recommended: Boolean,
     val download: DownloadState,
 )
+
+sealed interface ImportState {
+    data object Idle : ImportState
+    data class Running(val done: Long, val total: Long) : ImportState
+    data class Failed(val message: String) : ImportState
+}
 
 @HiltViewModel
 class SetupViewModel @Inject constructor(
@@ -48,4 +61,38 @@ class SetupViewModel @Inject constructor(
     }
 
     fun use(p: ModelProfile) = prefs.select(p.id)
+
+    private val _import = MutableStateFlow<ImportState>(ImportState.Idle)
+    val importState: StateFlow<ImportState> = _import.asStateFlow()
+
+    private val _customReady = MutableStateFlow(repo.isInstalled(Profiles.Custom))
+    val customReady: StateFlow<Boolean> = _customReady.asStateFlow()
+
+    private val _imported = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val imported: SharedFlow<Unit> = _imported
+
+    fun importModel(uri: Uri) {
+        if (_import.value is ImportState.Running) return
+        viewModelScope.launch {
+            _import.value = ImportState.Running(0, 0)
+            try {
+                repo.importFromUri(uri, Profiles.Custom) { d, t -> _import.value = ImportState.Running(d, t) }
+                _customReady.value = true
+                _import.value = ImportState.Idle
+                prefs.select(Profiles.Custom.id)
+                _imported.tryEmit(Unit)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _import.value = ImportState.Failed(e.message ?: "Не удалось загрузить модель из файла")
+            }
+        }
+    }
+
+    fun deleteCustom() {
+        if (prefs.selected.value == Profiles.Custom.id) prefs.clear()
+        repo.delete(Profiles.Custom)
+        _customReady.value = false
+        _import.value = ImportState.Idle
+    }
 }

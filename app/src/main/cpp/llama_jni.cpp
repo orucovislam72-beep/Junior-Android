@@ -81,8 +81,13 @@ Java_com_riglineaimstriker_junior_inference_LlamaBridge_generate(
     llama_memory_clear(llama_get_memory(h->ctx), true);
 
     llama_sampler *smpl = llama_sampler_chain_init(llama_sampler_chain_default_params());
+    // Штраф за повторы: маленькие модели склонны зацикливаться, особенно на коде.
+    // penalty_last_n=64, repeat=1.1 — умеренно, без вреда для нормального текста.
+    llama_sampler_chain_add(smpl, llama_sampler_init_penalties(
+        llama_vocab_n_tokens(vocab), 64, 1.1f, 0.0f, 0.0f));
     llama_sampler_chain_add(smpl, llama_sampler_init_top_k(40));
     llama_sampler_chain_add(smpl, llama_sampler_init_top_p(0.9f, 1));
+    llama_sampler_chain_add(smpl, llama_sampler_init_min_p(0.05f, 1));
     llama_sampler_chain_add(smpl, llama_sampler_init_temp(temperature));
     llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
