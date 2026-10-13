@@ -1,4 +1,11 @@
 <resources>
-    <color name="junior_bg">#0F1115</color>
-    <color name="ic_launcher_background">#000000</color>
+    <color name="junior_bg">#171D1A</color>
+    <color name="junior_icon_stroke">#E7EDE6</color>
+    <color name="junior_il_line">#B0BFB3</color>
+    <color name="junior_il_paper">#202923</color>
+    <color name="junior_il_soft">#29352E</color>
+    <color name="junior_il_accent">#A6CBB4</color>
+    <color name="junior_il_error">#FFB4A6</color>
+    <color name="junior_launcher_bg">#315F4B</color>
+    <color name="junior_launcher_fg">#FFFFFF</color>
 </resources>

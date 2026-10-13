@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Знак Junior: приглашение строки «›» и курсор. Всё внутри безопасной зоны 66 dp (x,y 21…87). Монохромный слой для тематических иконок Android 13+; цвет задаёт система. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path
+        android:pathData="M41,44l10,10 -10,10"
+        android:strokeColor="#FFFFFFFF" android:strokeWidth="6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M58,64h10"
+        android:strokeColor="#FFFFFFFF" android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+</vector>

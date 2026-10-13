@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Junior, оригинальная иллюстрация: ошибка — лист с прерванной строкой кода. Только контуры и плоские заливки, цвета из ресурсов темы. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="160dp" android:height="120dp"
+    android:viewportWidth="160" android:viewportHeight="120">
+    <path
+        android:pathData="M24,108h112"
+        android:fillColor="#00000000"
+        android:strokeColor="@color/junior_il_soft"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M46,12h50l18,18v64a6,6 0 0 1 -6,6H46a6,6 0 0 1 -6,-6V18a6,6 0 0 1 6,-6z"
+        android:fillColor="@color/junior_il_paper"
+        android:strokeColor="@color/junior_il_line"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M96,12v18h18"
+        android:fillColor="#00000000"
+        android:strokeColor="@color/junior_il_line"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M54,40h30M54,52h44"
+        android:fillColor="#00000000"
+        android:strokeColor="@color/junior_il_line"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M54,64h14"
+        android:fillColor="#00000000"
+        android:strokeColor="@color/junior_il_error"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M78,60l8,8M86,60l-8,8"
+        android:fillColor="#00000000"
+        android:strokeColor="@color/junior_il_error"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M54,78h36"
+        android:fillColor="#00000000"
+        android:strokeColor="@color/junior_il_soft"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

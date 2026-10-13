@@ -2,31 +2,40 @@ package com.riglineaimstriker.junior.ui.prepare
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.riglineaimstriker.junior.R
 import com.riglineaimstriker.junior.model.AppPrefs
 import com.riglineaimstriker.junior.model.ModelRepository
 import com.riglineaimstriker.junior.model.Profiles
-import com.riglineaimstriker.junior.ui.components.JuniorAvatar
+import com.riglineaimstriker.junior.ui.components.Illustration
+import com.riglineaimstriker.junior.ui.components.InlineNotice
+import com.riglineaimstriker.junior.ui.components.Space
+import com.riglineaimstriker.junior.ui.components.formatGb
+import com.riglineaimstriker.junior.ui.components.humanError
+import com.riglineaimstriker.junior.ui.components.rememberReducedMotion
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -34,7 +43,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.util.Locale
 import javax.inject.Inject
 
 sealed interface PrepareState {
@@ -75,8 +83,13 @@ class PrepareViewModel @Inject constructor(
     }
 }
 
-private fun gb(bytes: Long) = String.format(Locale.US, "%.2f", bytes / 1e9)
+/** Гигабайты по-русски с неразрывным пробелом: «1,2 ГБ». */
+private fun gb(bytes: Long) = formatGb(bytes.toDouble())
 
+/**
+ * Первый запуск: копирование встроенной модели. Прогресс — только реальные байты из PrepareState.Copying;
+ * пока размер неизвестен, показываем неопределённый индикатор без процентов.
+ */
 @Composable
 fun PrepareScreen(
     onDone: () -> Unit,
@@ -85,42 +98,69 @@ fun PrepareScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     LaunchedEffect(state) { if (state is PrepareState.Done) onDone() }
+    val reduced = rememberReducedMotion()
 
     Column(
-        Modifier.fillMaxSize().padding(32.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = Space.xl, vertical = Space.xxl),
+        verticalArrangement = Arrangement.spacedBy(Space.m),
     ) {
-        JuniorAvatar(size = 72.dp)
-        Spacer(Modifier.height(24.dp))
         when (val st = state) {
             is PrepareState.Failed -> {
-                Text("Не получилось", style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(8.dp))
-                Text(st.message, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.error)
-                Spacer(Modifier.height(24.dp))
-                Button(onClick = vm::start) { Text("Повторить") }
-                TextButton(onClick = onChooseModel) { Text("Выбрать другую модель") }
+                Illustration(R.drawable.il_error)
+                Text(
+                    "Не получилось подготовить модель",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.semantics { heading() },
+                )
+                InlineNotice(humanError(st.message, "Не удалось скопировать модель."), isError = true)
+                Text(
+                    "Попробуйте ещё раз. Если ошибка повторится, выберите другую модель или скачайте её на экране моделей.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(onClick = vm::start, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Text("Повторить")
+                }
+                OutlinedButton(onClick = onChooseModel, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Text("Выбрать другую модель")
+                }
             }
             else -> {
                 val c = st as? PrepareState.Copying
-                Text("Первый запуск", style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(8.dp))
+                Illustration(R.drawable.il_model)
                 Text(
-                    "Готовим Junior. Модель уже внутри приложения, интернет не нужен. Это делается один раз.",
-                    textAlign = TextAlign.Center,
+                    "Готовим Junior к работе",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.semantics { heading() },
+                )
+                Text(
+                    "Модель уже есть внутри приложения — переносим её в рабочую папку. " +
+                        "Интернет не нужен, это делается один раз.",
+                    style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.height(24.dp))
                 if (c != null && c.total > 0) {
                     LinearProgressIndicator(
                         progress = { (c.done.toFloat() / c.total).coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(top = Space.s),
                     )
-                    Spacer(Modifier.height(8.dp))
-                    Text("${gb(c.done)} / ${gb(c.total)} ГБ", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        "Скопировано ${gb(c.done)} из ${gb(c.total)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 } else {
-                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                    if (!reduced) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = Space.s))
+                    Text(
+                        "Начинаем…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

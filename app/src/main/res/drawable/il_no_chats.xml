@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Junior, оригинальная иллюстрация: пустой список чатов — два листа и курсор. Только контуры и плоские заливки, цвета из ресурсов темы. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="160dp" android:height="120dp"
+    android:viewportWidth="160" android:viewportHeight="120">
+    <path
+        android:pathData="M24,108h112"
+        android:fillColor="#00000000"
+        android:strokeColor="@color/junior_il_soft"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M36,20h52a6,6 0 0 1 6,6v68a6,6 0 0 1 -6,6h-52a6,6 0 0 1 -6,-6v-68a6,6 0 0 1 6,-6z"
+        android:fillColor="@color/junior_il_soft" />
+    <path
+        android:pathData="M60,12h64a6,6 0 0 1 6,6v76a6,6 0 0 1 -6,6h-64a6,6 0 0 1 -6,-6v-76a6,6 0 0 1 6,-6z"
+        android:fillColor="@color/junior_il_paper"
+        android:strokeColor="@color/junior_il_line"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M68,34h40M68,46h48M68,58h30"
+        android:fillColor="#00000000"
+        android:strokeColor="@color/junior_il_line"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M68,72h6"
+        android:fillColor="#00000000"
+        android:strokeColor="@color/junior_il_accent"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

@@ -1,0 +1,13 @@
+<resources>
+    <!-- Android 12+: системный экран запуска с тем же фоном и знаком Junior. -->
+    <style name="Theme.Junior" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/junior_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowSplashScreenBackground">@color/junior_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/junior_launcher_bg</item>
+    </style>
+</resources>

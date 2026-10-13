@@ -1,5 +1,9 @@
 <resources>
+    <!-- Экран запуска и фон окна совпадают с фоном темы «Минеральная мастерская». -->
     <style name="Theme.Junior" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/junior_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>
