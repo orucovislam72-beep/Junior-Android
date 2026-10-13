@@ -1,0 +1,5 @@
+<resources>
+    <style name="Theme.Junior" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/junior_bg</item>
+    </style>
+</resources>
