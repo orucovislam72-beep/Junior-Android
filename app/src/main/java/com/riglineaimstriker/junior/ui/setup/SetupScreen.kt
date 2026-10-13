@@ -27,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +41,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.riglineaimstriker.junior.model.DownloadState
 import com.riglineaimstriker.junior.model.ModelProfile
+import com.riglineaimstriker.junior.model.Profiles
 import com.riglineaimstriker.junior.ui.components.JuniorAvatar
 import java.util.Locale
 
@@ -55,6 +57,12 @@ fun SetupScreen(onDone: () -> Unit, vm: SetupViewModel = hiltViewModel()) {
         pending?.let(vm::download)
         pending = null
     }
+    val customReady by vm.customReady.collectAsStateWithLifecycle()
+    val importState by vm.importState.collectAsStateWithLifecycle()
+    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.importModel(uri)
+    }
+    LaunchedEffect(Unit) { vm.imported.collect { onDone() } }
     val startDownload: (ModelProfile) -> Unit = { p ->
         val needAsk = Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) !=
@@ -92,6 +100,16 @@ fun SetupScreen(onDone: () -> Unit, vm: SetupViewModel = hiltViewModel()) {
                 onCancel = { vm.cancel(ui.profile) },
                 onDelete = { vm.delete(ui.profile) },
                 onUse = { vm.use(ui.profile); onDone() },
+            )
+        }
+        item {
+            CustomModelCard(
+                ready = customReady,
+                state = importState,
+                isSelected = selected == Profiles.Custom.id,
+                onPick = { pickFile.launch(arrayOf("*/*")) },
+                onUse = { vm.use(Profiles.Custom); onDone() },
+                onDelete = vm::deleteCustom,
             )
         }
     }
@@ -165,6 +183,70 @@ private fun ModelCard(
                     Button(onDownload, Modifier.padding(top = 8.dp)) { Text("Повторить") }
                 }
                 else -> Button(onDownload) { Text("Скачать") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CustomModelCard(
+    ready: Boolean,
+    state: ImportState,
+    isSelected: Boolean,
+    onPick: () -> Unit,
+    onUse: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("Своя модель из файла", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Любая модель в формате .gguf (например, 14B), заранее скачанная на телефон. " +
+                    "Файл копируется в память приложения, на это время нужно место под вторую копию. " +
+                    "Размер модели ограничен только ОЗУ телефона.",
+                Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+            when (state) {
+                is ImportState.Running -> {
+                    if (state.total > 0) {
+                        LinearProgressIndicator(
+                            progress = { (state.done.toFloat() / state.total).coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(
+                            "${gb(state.done.toDouble())} из ${gb(state.total.toDouble())} ГБ",
+                            Modifier.padding(top = 4.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+                else -> {
+                    if (state is ImportState.Failed) {
+                        Text(
+                            state.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    if (ready) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Button(onUse) { Text(if (isSelected) "Продолжить" else "Использовать") }
+                            TextButton(onPick) { Text("Заменить") }
+                            TextButton(onDelete) { Text("Удалить") }
+                        }
+                    } else {
+                        Button(onPick) { Text("Выбрать файл .gguf") }
+                    }
+                }
             }
         }
     }

@@ -15,6 +15,7 @@ import com.riglineaimstriker.junior.model.AppPrefs
 import com.riglineaimstriker.junior.model.ModelRepository
 import com.riglineaimstriker.junior.model.Profiles
 import com.riglineaimstriker.junior.ui.chat.ChatScreen
+import com.riglineaimstriker.junior.ui.prepare.PrepareScreen
 import com.riglineaimstriker.junior.ui.setup.SetupScreen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -23,7 +24,11 @@ import javax.inject.Inject
 class NavViewModel @Inject constructor(prefs: AppPrefs, repo: ModelRepository) : ViewModel() {
     val startRoute: String = run {
         val p = Profiles.byId(prefs.selected.value)
-        if (p != null && repo.isInstalled(p)) "chat" else "setup"
+        when {
+            p != null && repo.isInstalled(p) -> "chat"
+            repo.hasBundled(Profiles.Mini) -> "prepare"
+            else -> "setup"
+        }
     }
 }
 
@@ -39,6 +44,12 @@ fun AppNav(vm: NavViewModel = hiltViewModel()) {
         popEnterTransition = { fadeIn() },
         popExitTransition = { fadeOut() + slideOutHorizontally { it / 8 } },
     ) {
+        composable("prepare") {
+            PrepareScreen(
+                onDone = { nav.navigate("chat") { popUpTo("prepare") { inclusive = true } } },
+                onChooseModel = { nav.navigate("setup") { popUpTo("prepare") { inclusive = true } } },
+            )
+        }
         composable("setup") {
             SetupScreen(onDone = {
                 if (!nav.popBackStack("chat", inclusive = false)) {

@@ -63,6 +63,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true }
+    // GGUF уже сжат квантованием: храним в APK без сжатия (быстрее сборка и копирование).
+    androidResources { noCompress += "gguf" }
     packaging { jniLibs { useLegacyPackaging = false } }
 }
 
