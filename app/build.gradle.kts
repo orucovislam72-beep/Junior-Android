@@ -15,8 +15,10 @@ android {
         applicationId = "com.riglineaimstriker.junior"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        // versionCode растёт сам: 300 + номер запуска GitHub Actions.
+        // Так каждая новая сборка ставится поверх старой без удаления.
+        versionCode = 300 + (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0)
+        versionName = "0.3.0"
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild {
             cmake {
@@ -39,8 +41,25 @@ android {
         }
     }
 
+    // Постоянный ключ подписи из репозитория (app/junior.keystore).
+    // Раньше CI на каждой сборке создавал случайный debug-ключ, и Android
+    // не давал обновить приложение без удаления. Теперь подпись всегда одна.
+    val juniorKeystore = file("junior.keystore")
     val ks = System.getenv("JUNIOR_KEYSTORE")
     signingConfigs {
+        getByName("debug") {
+            storeFile = juniorKeystore
+            storePassword = "junior-release"
+            keyAlias = "junior"
+            keyPassword = "junior-release"
+        }
+        create("junior") {
+            storeFile = juniorKeystore
+            storePassword = "junior-release"
+            keyAlias = "junior"
+            keyPassword = "junior-release"
+        }
+        // Свой ключ для релиза можно передать через переменные окружения.
         if (ks != null) create("release") {
             storeFile = file(ks)
             storePassword = System.getenv("JUNIOR_KS_PASS")
@@ -50,11 +69,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (ks != null) signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName(if (ks != null) "release" else "junior")
         }
     }
 
@@ -80,6 +102,7 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.icons.core)
+    implementation(libs.androidx.documentfile)
     debugImplementation(libs.androidx.compose.ui.tooling)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.kotlinx.coroutines.android)

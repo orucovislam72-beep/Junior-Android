@@ -33,10 +33,20 @@ class InferenceException(val code: Int) : Exception(
     companion object { const val CONTEXT_OVERFLOW = -2 }
 }
 
+/** События генерации: прогресс чтения промпта и новые куски текста (по одному на токен). */
+sealed interface GenEvent {
+    data class Prompt(val nPrompt: Int, val nReused: Int, val nCtx: Int, val nDone: Int) : GenEvent
+    data class Token(val text: String) : GenEvent
+}
+
 interface InferenceEngine {
     val state: StateFlow<EngineState>
     suspend fun load(modelPath: String, nCtx: Int, threads: Int)
-    fun generate(prompt: String, maxTokens: Int, temperature: Float = 0.3f): Flow<String>
+    fun generate(prompt: String, maxTokens: Int, temperature: Float = 0.3f): Flow<GenEvent>
+    /** Точное число токенов в тексте или -1, если модель не загружена. */
+    fun countTokens(text: String): Int
+    /** Сбросить KV-кэш (следующий запрос будет посчитан с нуля). */
+    suspend fun resetCache()
     fun cancel()
     fun reportFailure(message: String)
 }
@@ -50,9 +60,12 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
     @Volatile private var handle = 0L
     private val genLock = Mutex()
     private val loadLock = Mutex()
+    @Volatile private var loadedSig: String? = null
 
     override suspend fun load(modelPath: String, nCtx: Int, threads: Int) {
         loadLock.withLock {
+            val sig = "$modelPath|${java.io.File(modelPath).lastModified()}|$nCtx"
+            if (_state.value is EngineState.Ready && handle != 0L && loadedSig == sig) return@withLock
             withContext(Dispatchers.Default) {
                 unloadInternal()
                 _state.value = EngineState.Loading
@@ -60,6 +73,7 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
                     val h = LlamaBridge.load(modelPath, nCtx, threads)
                     check(h != 0L) { "Не удалось открыть модель. Файл повреждён или не хватает памяти." }
                     handle = h
+                    loadedSig = sig
                     _state.value = EngineState.Ready
                 } catch (e: CancellationException) {
                     _state.value = EngineState.Unloaded
@@ -74,6 +88,7 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
     }
 
     private suspend fun unloadInternal() {
+        loadedSig = null
         val h = synchronized(lock) { val x = handle; handle = 0L; x }
         if (h != 0L) {
             LlamaBridge.cancel(h)
@@ -81,7 +96,7 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
         }
     }
 
-    override fun generate(prompt: String, maxTokens: Int, temperature: Float): Flow<String> =
+    override fun generate(prompt: String, maxTokens: Int, temperature: Float): Flow<GenEvent> =
         callbackFlow {
             val h = handle
             if (h == 0L) {
@@ -98,9 +113,13 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
                     val rc = try {
                         LlamaBridge.generate(
                             h, prompt.toByteArray(Charsets.UTF_8), maxTokens, temperature,
-                            TokenCallback { bytes ->
-                                val s = utf8.push(bytes)
-                                s.isEmpty() || trySend(s).isSuccess
+                            object : TokenCallback {
+                                override fun onToken(bytes: ByteArray): Boolean =
+                                    trySend(GenEvent.Token(utf8.push(bytes))).isSuccess
+
+                                override fun onPrompt(nPrompt: Int, nReused: Int, nCtx: Int, nDone: Int) {
+                                    trySend(GenEvent.Prompt(nPrompt, nReused, nCtx, nDone))
+                                }
                             },
                         )
                     } catch (t: Throwable) {
@@ -112,6 +131,23 @@ class LlamaCppEngine @Inject constructor() : InferenceEngine {
             }
             awaitClose { if (worker.isActive) cancel() }
         }.buffer(Channel.UNLIMITED)
+
+    override fun countTokens(text: String): Int {
+        val h = handle
+        if (h == 0L) return -1
+        return try {
+            LlamaBridge.countTokens(h, text.toByteArray(Charsets.UTF_8))
+        } catch (t: Throwable) {
+            -1
+        }
+    }
+
+    override suspend fun resetCache() {
+        val h = handle
+        if (h == 0L) return
+        LlamaBridge.cancel(h)
+        genLock.withLock { if (handle == h) LlamaBridge.reset(h) }
+    }
 
     override fun cancel() {
         synchronized(lock) { if (handle != 0L) LlamaBridge.cancel(handle) }

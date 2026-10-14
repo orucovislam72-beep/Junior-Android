@@ -1,8 +1,15 @@
 package com.riglineaimstriker.junior.inference
 
-fun interface TokenCallback {
-    /** Возвращает false, чтобы остановить генерацию. */
+/** Вызывается из нативного кода (llama_jni.cpp). Сигнатуры менять только вместе с C++. */
+interface TokenCallback {
+    /** Новый токен (байты UTF-8, могут быть пустыми). Возвращает false, чтобы остановить генерацию. */
     fun onToken(bytes: ByteArray): Boolean
+
+    /**
+     * Прогресс чтения промпта: всего [nPrompt] токенов, из них [nReused] взято из KV-кэша,
+     * [nDone] уже посчитано, [nCtx] — размер контекста.
+     */
+    fun onPrompt(nPrompt: Int, nReused: Int, nCtx: Int, nDone: Int)
 }
 
 object LlamaBridge {
@@ -12,6 +19,8 @@ object LlamaBridge {
     external fun generate(
         handle: Long, prompt: ByteArray, maxTokens: Int, temperature: Float, cb: TokenCallback,
     ): Int
+    external fun countTokens(handle: Long, text: ByteArray): Int
+    external fun reset(handle: Long)
     external fun cancel(handle: Long)
     external fun free(handle: Long)
 }
